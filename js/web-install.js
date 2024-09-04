@@ -196,7 +196,7 @@ const qualcommDevices = ["barbet", "redfin", "bramble", "sunfish", "coral", "fla
 
 const legacyQualcommDevices = ["sunfish", "coral", "flame"];
 
-const tensorDevices = ["akita", "husky", "shiba", "felix", "tangorpro", "lynx", "cheetah", "panther", "bluejay", "raven", "oriole"];
+const tensorDevices = ["akita", "husky", "shiba", "felix", "tangorpro", "komdo", "caiman", "tokay", "lynx", "cheetah", "panther", "bluejay", "raven", "oriole"];
 
 const day1SnapshotCancelDevices = ["akita", "husky", "shiba", "komdo", "caiman", "tokay", "felix", "tangorpro", "lynx", "cheetah", "panther", "bluejay", "raven", "oriole", "barbet", "redfin", "bramble"];
 
