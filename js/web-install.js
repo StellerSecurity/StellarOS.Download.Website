@@ -190,15 +190,15 @@ async function unlockBootloader(setProgress) {
     return "Bootloader unlocked.";
 }
 
-const supportedDevices = ["husky", "shiba", "bluejay", "barbet", "redfin", "lynx", "komdo", "caiman", "tokay"];
+const supportedDevices = ["husky", "shiba", "bluejay", "barbet", "redfin", "lynx", "komodo", "caiman", "tokay"];
 
 const qualcommDevices = ["barbet", "redfin", "bramble", "sunfish", "coral", "flame"];
 
 const legacyQualcommDevices = ["sunfish", "coral", "flame"];
 
-const tensorDevices = ["akita", "husky", "shiba", "felix", "tangorpro", "komdo", "caiman", "tokay", "lynx", "cheetah", "panther", "bluejay", "raven", "oriole"];
+const tensorDevices = ["akita", "husky", "shiba", "felix", "tangorpro", "komodo", "caiman", "tokay", "lynx", "cheetah", "panther", "bluejay", "raven", "oriole"];
 
-const day1SnapshotCancelDevices = ["akita", "husky", "shiba", "komdo", "caiman", "tokay", "felix", "tangorpro", "lynx", "cheetah", "panther", "bluejay", "raven", "oriole", "barbet", "redfin", "bramble"];
+const day1SnapshotCancelDevices = ["akita", "husky", "shiba", "komodo", "caiman", "tokay", "felix", "tangorpro", "lynx", "cheetah", "panther", "bluejay", "raven", "oriole", "barbet", "redfin", "bramble"];
 
 async function getLatestRelease() {
     let product = await device.getVariable("product");
