@@ -20,6 +20,13 @@ body {
     overflow-y: scroll;
 }
 
+.hashes {
+    background-color: grey;
+    padding: 20px;
+    font-weight: bold;
+    border-radius: 12px;
+}
+
 a {
     color: #1565c0; /* blue800 */
     text-decoration: none;
