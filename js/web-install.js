@@ -2,7 +2,7 @@
 
 import * as fastboot from "./fastboot/066d736d/fastboot.min.mjs";
 
-const RELEASES_URL = "https://www.stellar-releases.dk/";
+const RELEASES_URL = "https://stellarosdownloadwebsiteprod.azurewebsites.net/";
 
 const CACHE_DB_NAME = "BlobStore";
 const CACHE_DB_VERSION = 1;
