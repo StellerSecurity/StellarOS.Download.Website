@@ -30,7 +30,7 @@ const requestWakeLock = async () => {
             console.log("Wake lock has been released");
         });
     } catch (err) {
-        // if wake lock request fails - usually system related, such as battery
+        // If wake lock request fails - usually system related, such as battery
         throw new Error(`${err.name}, ${err.message}`);
     }
 };
@@ -43,7 +43,7 @@ const releaseWakeLock = async () => {
     }
 };
 
-// reacquires the wake lock should the visibility of the document change and the wake lock is released
+// Reacquire wake lock should the visibility of the document change and the wake lock is released
 document.addEventListener("visibilitychange", async () => {
     if (wakeLock !== null && document.visibilityState === "visible") {
         await requestWakeLock();
@@ -66,11 +66,13 @@ function fetchBlobWithProgress(url, onProgress) {
             }
         };
         xhr.onprogress = (event) => {
-            onProgress(event.loaded / event.total);
+            // event.total can be 0 or undefined in some cases
+            if (event.total) {
+                onProgress(event.loaded / event.total);
+            }
         };
         xhr.onerror = () => {
             // onerror is called on network errors
-            // status and statusText are populated with default values
             reject("Network request failed");
         };
     });
@@ -78,6 +80,10 @@ function fetchBlobWithProgress(url, onProgress) {
 
 function setButtonState({ id, enabled }) {
     const button = document.getElementById(`${id}-button`);
+    if (!button) {
+        console.warn(`[web-install] Missing button element: #${id}-button`);
+        return null;
+    }
     button.disabled = !enabled;
     return button;
 }
@@ -146,7 +152,7 @@ class BlobStore {
             let obj = await this._wrapReq(
               this.db.transaction("files").objectStore("files").get(name)
             );
-            return obj.blob;
+            return obj ? obj.blob : null;
         } catch {
             return null;
         }
@@ -159,16 +165,15 @@ class BlobStore {
     async download(url, onProgress = () => {}) {
         let filename = url.split("/").pop();
         let blob = await this.loadFile(filename);
+
         if (blob === null) {
             console.log(`Downloading ${url}`);
-            let blob = await fetchBlobWithProgress(url, onProgress);
+            blob = await fetchBlobWithProgress(url, onProgress);
             console.log("File downloaded, saving...");
             await this.saveFile(filename, blob);
             console.log("File saved");
         } else {
-            console.log(
-              `Loaded ${filename} from blob store, skipping download`
-            );
+            console.log(`Loaded ${filename} from blob store, skipping download`);
         }
 
         return blob;
@@ -240,11 +245,19 @@ async function unlockBootloader(setProgress) {
     return "Bootloader unlocking triggered successfully.";
 }
 
-const supportedDevices = ["rango", "mustang", "blazer", "frankel", "tegu", "comet", "komodo", "caiman", "tokay", "akita", "husky", "shiba", "felix", "tangorpro", "lynx", "cheetah", "panther", "bluejay", "raven", "oriole", "barbet", "redfin", "bramble", "sunfish", "coral", "flame"];
+const supportedDevices = [
+    "rango", "mustang", "blazer", "frankel", "tegu", "comet", "komodo", "caiman", "tokay",
+    "akita", "husky", "shiba", "felix", "tangorpro", "lynx", "cheetah", "panther", "bluejay",
+    "raven", "oriole", "barbet", "redfin", "bramble", "sunfish", "coral", "flame"
+];
 
 const legacyQualcommDevices = ["sunfish", "coral", "flame"];
 
-const day1SnapshotCancelDevices = ["tegu", "comet", "komodo", "caiman", "tokay", "akita", "husky", "shiba", "felix", "tangorpro", "lynx", "cheetah", "panther", "bluejay", "raven", "oriole", "barbet", "redfin", "bramble"];
+const day1SnapshotCancelDevices = [
+    "tegu", "comet", "komodo", "caiman", "tokay", "akita", "husky", "shiba", "felix",
+    "tangorpro", "lynx", "cheetah", "panther", "bluejay", "raven", "oriole", "barbet",
+    "redfin", "bramble"
+];
 
 function hasOptimizedFactoryImage(product) {
     return !legacyQualcommDevices.includes(product);
@@ -287,11 +300,14 @@ async function downloadRelease(setProgress) {
 
 async function reconnectCallback() {
     let statusField = document.getElementById("flash-release-status");
-    statusField.textContent =
-      "To continue flashing, reconnect the device by tapping here:";
+    if (statusField) {
+        statusField.textContent = "To continue flashing, reconnect the device by tapping here:";
+    }
 
     let reconnectButton = document.getElementById("flash-reconnect-button");
     let progressBar = document.getElementById("flash-release-progress");
+
+    if (!reconnectButton || !progressBar) return;
 
     // Hide progress bar while waiting for reconnection
     progressBar.hidden = true;
@@ -308,8 +324,7 @@ async function flashRelease(setProgress) {
     await requestWakeLock();
     await ensureConnected(setProgress);
 
-    // Need to do this again because the user may not have clicked download if
-    // it was cached
+    // Need to do this again because the user may not have clicked download if it was cached
     setProgress("Finding latest release...");
     let [latestZip, product] = await getLatestRelease();
     await blobStore.init();
@@ -330,13 +345,12 @@ async function flashRelease(setProgress) {
     setProgress("Flashing release...");
     setInstallerState({ state: InstallerState.INSTALLING_RELEASE, active: true });
     try {
-        await device.flashFactoryZip(blob, true, reconnectCallback,
-          (action, item, progress) => {
-              let userAction = fastboot.USER_ACTION_MAP[action];
-              let userItem = item === "avb_custom_key" ? "verified boot key" : item;
-              setProgress(`${userAction} ${userItem}...`, progress);
-          }
-        );
+        await device.flashFactoryZip(blob, true, reconnectCallback, (action, item, progress) => {
+            let userAction = fastboot.USER_ACTION_MAP[action];
+            let userItem = item === "avb_custom_key" ? "verified boot key" : item;
+            setProgress(`${userAction} ${userItem}...`, progress);
+        });
+
         if (legacyQualcommDevices.includes(product)) {
             setProgress("Disabling UART...");
             // See https://android.googlesource.com/platform/system/core/+/eclair-release/fastboot/fastboot.c#532
@@ -390,6 +404,12 @@ async function lockBootloader(setProgress) {
 }
 
 function addButtonHook(id, callback) {
+    const button = setButtonState({ id, enabled: true });
+    if (!button) {
+        // Button not present in HTML, silently skip.
+        return;
+    }
+
     let statusContainer = document.getElementById(`${id}-status-container`);
     let statusField = document.getElementById(`${id}-status`);
     let progressBar = document.getElementById(`${id}-progress`);
@@ -399,16 +419,19 @@ function addButtonHook(id, callback) {
             statusContainer.hidden = false;
         }
 
-        statusField.className = "";
-        statusField.textContent = status;
+        if (statusField !== null) {
+            statusField.className = "";
+            statusField.textContent = status;
+        } else {
+            console.warn(`[web-install] Missing status field: #${id}-status`);
+        }
 
-        if (progress !== undefined) {
+        if (progress !== undefined && progressBar !== null) {
             progressBar.hidden = false;
             progressBar.value = progress;
         }
     };
 
-    let button = setButtonState({ id, enabled: true });
     button.onclick = async () => {
         try {
             let finalStatus = await callback(statusCallback);
@@ -418,17 +441,20 @@ function addButtonHook(id, callback) {
         } catch (error) {
             let errorMessage;
             if (error instanceof DOMException && error.name === "QuotaExceededError") {
-                // provide a more descriptive message than "Error: QuotaExceededError"
+                // Provide a more descriptive message than "Error: QuotaExceededError"
                 errorMessage = "storage quota has been exceeded, you might not have enough space on your drive, or you're using incognito mode";
-            } else if (typeof(error) === "object" && error.message != null && error.message !== "") {
+            } else if (typeof (error) === "object" && error.message != null && error.message !== "") {
                 errorMessage = error.message;
             } else {
-                // sometimes non-error objects are thrown
-                // display its string representation instead of "Error: undefined"
+                // Sometimes non-error objects are thrown
                 errorMessage = error.toString();
             }
+
             statusCallback(`Error: ${errorMessage}`);
-            statusField.className = "error-text";
+            if (statusField !== null) {
+                statusField.className = "error-text";
+            }
+
             await releaseWakeLock();
             // Rethrow the error so it shows up in the console
             throw error;
@@ -462,6 +488,7 @@ function invalidateInstallerState() {
         Buttons.LOCK_BOOTLOADER,
         Buttons.REMOVE_CUSTOM_KEY,
     ];
+
     if (isInstallerStateActive(InstallerState.INSTALLING_RELEASE)) {
         buttonController.setDisabled(...disableWhileInstalling);
     } else {
@@ -497,7 +524,12 @@ if ("usb" in navigator) {
             // Currently factory images are ~1700MiB
             // Show a warning if the estimated space is below 2000MiB
             if (estimate.quota !== 0 && estimate.quota < 2000 * 1024 * 1024) {
-                document.getElementById("quota-warning-text").hidden = false;
+                const warning = document.getElementById("quota-warning-text");
+                if (warning) {
+                    warning.hidden = false;
+                } else {
+                    console.warn("[web-install] Missing #quota-warning-text");
+                }
             }
         });
     }
@@ -505,13 +537,19 @@ if ("usb" in navigator) {
     console.log("WebUSB unavailable");
     for (const btnId in Buttons) {
         const elementId = Buttons[btnId];
+
         const statusContainer = document.getElementById(`${elementId}-status-container`);
         const statusField = document.getElementById(`${elementId}-status`);
+
         if (statusContainer !== null) {
             statusContainer.hidden = false;
         }
-        statusField.className = "error-text";
-        statusField.innerHTML = "Unavailable, as your browser doesn't support WebUSB. Please read the <a href=\"#prerequisites\">prerequisites</a>.";
+        if (statusField !== null) {
+            statusField.className = "error-text";
+            statusField.innerHTML = "Unavailable, as your browser doesn't support WebUSB. Please read the <a href=\"#prerequisites\">prerequisites</a>.";
+        } else {
+            console.warn(`[web-install] Missing status field: #${elementId}-status`);
+        }
     }
 }
 

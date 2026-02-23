@@ -1,162 +1,166 @@
 <!DOCTYPE html>
 <html lang="en" prefix="og: https://ogp.me/ns#">
-    <head>
-        <meta charset="utf-8"/>
-        <title>StellarOS</title>
-        <meta name="theme-color" content="#212121"/>
-        <meta name="color-scheme" content="dark light"/>
-        <meta name="msapplication-TileColor" content="#ffffff"/>
-        <meta name="viewport" content="width=device-width, initial-scale=1"/>
+<head>
+    <meta charset="utf-8" />
+    <title>StellarOS</title>
+    <meta name="theme-color" content="#212121" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="msapplication-TileColor" content="#ffffff" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-        <meta property="og:description" content=""/>
-        <meta property="og:type" content="website"/>
+    <meta property="og:description" content="" />
+    <meta property="og:type" content="website" />
 
-        <meta property="og:image:width" content="512"/>
-        <meta property="og:image:height" content="512"/>
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
 
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="icon" sizes="any" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="stylesheet" href="main.css" />
+</head>
 
-        <link rel="icon" href="/favicon.ico"/>
-        <link rel="icon" sizes="any" type="image/svg+xml" href="/favicon.svg"/>
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-        <link rel="stylesheet" href="main.css">
+<body>
+<main id="web-install">
 
+    <img src="https://stellarsecurity.com/assets/img/logo.svg" style="height: 100px" alt="Stellar Security" />
 
+    <!-- Optional: warning used by web-install.js if quota is low -->
+    <p id="quota-warning-text" class="error-text" hidden="hidden">
+        Warning: Your browser reports low available storage. Downloading a release may fail. Free up space or use another browser profile.
+    </p>
 
-    </head>
-    <body>
+    <section id="unlocking-the-bootloader">
+        <h2>StellarOS</h2>
+        <p>StellarOS is a private and secure operating system that only supports newer Pixel-devices due to their secure hardware.</p>
+        <p>StellarOS is easy to use and is always updated to the latest security releases and Android-versions.</p>
 
-        <main id="web-install">
+        <h2><a href="#unlocking-the-bootloader">Unlocking the bootloader</a></h2>
 
+        <p>Unlock the bootloader to allow flashing the OS and firmware:</p>
 
-            <img src="https://stellarsecurity.com/assets/img/logo.svg" style="height: 100px">
+        <button id="unlock-bootloader-button" disabled>Unlock bootloader</button>
 
+        <p>
+            The command needs to be confirmed on the device and will wipe all data. Use one
+            of the volume buttons to switch the selection to accepting it and the power button to
+            confirm.
+        </p>
 
-            <section id="unlocking-the-bootloader">
+        <p><strong id="unlock-bootloader-status"></strong></p>
+    </section>
 
-                <h2>StellarOS</h2>
-                <p>StellarOS is a private and secure operating system that only supports newer Pixel-devices due to their secure hardware.</p>
-                <p>StellarOS is easy to use and is always updated to the latest security releases and Android-versions.</p>
-                <h2><a href="#unlocking-the-bootloader">Unlocking the bootloader</a></h2>
+    <section id="obtaining-factory-images">
+        <h2><a href="#obtaining-factory-images">Obtaining factory images</a></h2>
 
-                <p>Unlock the bootloader to allow flashing the OS and firmware:</p>
+        <p>You need to obtain the StellarOS factory images for your device to proceed with the installation process.</p>
+        <p>Press the button below to start the download:</p>
 
-                <button id="unlock-bootloader-button" disabled="">Unlock bootloader</button>
+        <button id="download-release-button" disabled>Download release</button>
 
-                <p>The command needs to be confirmed on the device and will wipe all data. Use one
-                of the volume buttons to switch the selection to accepting it and the power button to
-                confirm.</p>
+        <p id="download-release-status-container" hidden="hidden">
+            <strong id="download-release-status"></strong>
+            <br />
+            <progress id="download-release-progress" hidden="hidden" max="1" value="0"></progress>
+        </p>
+    </section>
 
-                <p><strong id="unlock-bootloader-status"></strong></p>
-            </section>
+    <section id="flashing-factory-images">
+        <h2><a href="#flashing-factory-images">Flashing factory images</a></h2>
 
-            <section id="obtaining-factory-images">
-                <h2><a href="#obtaining-factory-images">Obtaining factory images</a></h2>
+        <p>The initial install will be performed by flashing the factory images. This will replace the existing OS installation and wipe all the existing data.</p>
 
-                <p>You need to obtain the StellarOS factory images for your device to proceed with
-                the installation process.</p>
+        <button id="flash-release-button" disabled>Flash release</button>
 
-                <p>Press the button below to start the download:</p>
+        <p>
+            Wait for the flashing process to complete. It will automatically handle
+            flashing the firmware, rebooting into the bootloader interface, flashing the core
+            OS, rebooting into the userspace fastboot mode, flashing the rest of the OS and
+            finally rebooting back into the bootloader interface. Avoid interacting with the
+            device until the flashing script is finished and the device is back at the
+            bootloader interface. Then, proceed to <a href="#locking-the-bootloader">locking
+            the bootloader</a> before using the device as locking wipes the data again.
+        </p>
 
-                <button id="download-release-button" disabled="">Download release</button>
+        <p id="flash-release-status-container" hidden="hidden">
+            <strong id="flash-release-status"></strong>
+            <br />
 
-                <p id="download-release-status-container" hidden="hidden">
-                    <strong id="download-release-status"></strong>
-                    <br/>
-                    <progress id="download-release-progress" hidden="hidden" max="1" value="0"></progress>
-                </p>
-            </section>
+            <progress id="flash-release-progress" hidden="hidden" max="1" value="0"></progress>
+            <button id="flash-reconnect-button" hidden="hidden"><strong>Reconnect device</strong></button>
+        </p>
+    </section>
 
-            <section id="flashing-factory-images">
-                <h2><a href="#flashing-factory-images">Flashing factory images</a></h2>
+    <section id="locking-the-bootloader">
+        <h2><a href="#locking-the-bootloader">Locking the bootloader</a></h2>
 
-                <p>The initial install will be performed by flashing the factory images. This will
-                replace the existing OS installation and wipe all the existing data.</p>
+        <p>
+            Locking the bootloader is important as it enables full verified boot. It also
+            prevents using fastboot to flash, format or erase partitions. Verified boot will
+            detect modifications to any of the OS partitions and it will prevent reading any
+            modified / corrupted data. If changes are detected, error correction data is used
+            to attempt to obtain the original data at which point it's verified again which
+            makes verified boot robust to non-malicious corruption.
+        </p>
 
-                <button id="flash-release-button" disabled="">Flash release</button>
+        <p>In the bootloader interface, set it to locked:</p>
 
+        <button id="lock-bootloader-button" disabled>Lock bootloader</button>
 
-                <p>Wait for the flashing process to complete. It will automatically handle
-                flashing the firmware, rebooting into the bootloader interface, flashing the core
-                OS, rebooting into the userspace fastboot mode, flashing the rest of the OS and
-                finally rebooting back into the bootloader interface. Avoid interacting with the
-                device until the flashing script is finished and the device is back at the
-                bootloader interface. Then, proceed to <a href="#locking-the-bootloader">locking
-                the bootloader</a> before using the device as locking wipes the data again.</p>
+        <p>
+            The command needs to be confirmed on the device and will wipe all data. Use one
+            of the volume buttons to switch the selection to accepting it and the power button
+            to confirm.
+        </p>
 
-                <p id="flash-release-status-container" hidden="hidden">
-                    <strong id="flash-release-status"></strong>
-                    <br/>
+        <p><strong id="lock-bootloader-status"></strong></p>
+    </section>
 
-                    <!-- These appear as part of the status, one at a time -->
-                    <progress id="flash-release-progress" hidden="hidden" max="1" value="0"></progress>
-                    <button id="flash-reconnect-button" hidden="hidden"><strong>Reconnect device</strong></button>
-                </p>
-            </section>
+    <!-- Optional: only needed if you want the "remove custom key" feature visible -->
+    <section id="removing-custom-key">
+        <h2><a href="#removing-custom-key">Remove custom verified boot key</a></h2>
+        <p>If you previously flashed a custom verified boot key, you can remove it here.</p>
 
-            <section id="locking-the-bootloader">
-                <h2><a href="#locking-the-bootloader">Locking the bootloader</a></h2>
+        <button id="remove-custom-key-button" disabled>Remove custom key</button>
 
-                <p>Locking the bootloader is important as it enables full verified boot. It also
-                prevents using fastboot to flash, format or erase partitions.  Verified boot will
-                detect modifications to any of the OS partitions and it will prevent reading any
-                modified / corrupted data. If changes are detected, error correction data is used
-                to attempt to obtain the original data at which point it's verified again which
-                makes verified boot robust to non-malicious corruption.</p>
+        <p id="remove-custom-key-status-container" hidden="hidden">
+            <strong id="remove-custom-key-status"></strong>
+        </p>
+    </section>
 
-                <p>In the bootloader interface, set it to locked:</p>
+    <section id="locking-the-bootloaders">
+        <h2><a href="#locking-the-bootloaders">Verified boot key hash</a></h2>
 
-                <button id="lock-bootloader-button" disabled="">Lock bootloader</button>
+        <p>6th generation Pixels onwards show the full hash and you can compare it against the official StellarOS verified boot key hashes below:</p>
 
-                <p>The command needs to be confirmed on the device and will wipe all data. Use one
-                of the volume buttons to switch the selection to accepting it and the power button
-                to confirm.</p>
+        <div class="hashes">
+            Tokay: 5199e296d2046f36a9864490f543b34d703ef70fbad4f1a9079fa984dcb280a1<br><br>
+            Shiba: ecb291db1d3380708ba11320c46f92fa7bd6e646309d0fd97603773328396025<br><br>
+            Akita: ecb291db1d3380708ba11320c46f92fa7bd6e646309d0fd97603773328396025<br><br>
+            Komodo: 5199e296d2046f36a9864490f543b34d703ef70fbad4f1a9079fa984dcb280a1<br><br>
+            Barbet: 7c65ba922c45d9914c1e75205b1672cb8d794c98cdb4d10a3787593b3b162038 (<strong>NO LONGER SUPPORTED</strong>)<br><br>
+            Bluejay: 44a914a72da983c1463f3e36f853b8ee595b5338ff122ec6fd58f6b66538d94b<br><br>
+            Caiman: 5199e296d2046f36a9864490f543b34d703ef70fbad4f1a9079fa984dcb280a1<br><br>
+            Lynx: 76fd9c95faa38ec6fe77570e0713e69583bf364b770e9aeaa2ce6d185661df3a<br><br>
+        </div>
+    </section>
 
-                <p><strong id="lock-bootloader-status"></strong></p>
-            </section>
+    <section id="post-installation">
+        <h2><a href="#post-installation">Post-installation</a></h2>
 
-            <section id="locking-the-bootloaders">
-                <h2><a href="#locking-the-bootloaders">Verified boot key hash</a></h2>
+        <section id="booting">
+            <h3><a href="#booting">Booting</a></h3>
+            <p>You've now successfully installed StellarOS and can boot it. Pressing the power button with the default Start option selected in the bootloader interface will boot the OS.</p>
+        </section>
 
-                <p>6th generation Pixels onwards show the full hash and you can compare it against the official StellarOS verified boot key hashes below:</p>
+        <section id="help">
+            <h2><a href="#booting">Help</a></h2>
+            <p>If you need any help, please contact us at info@stellarsecurity.com.</p>
+        </section>
+    </section>
+</main>
 
-                <div class="hashes">
-                Tokay: 5199e296d2046f36a9864490f543b34d703ef70fbad4f1a9079fa984dcb280a1<br><br>
-                Shiba: ecb291db1d3380708ba11320c46f92fa7bd6e646309d0fd97603773328396025<br><br>
-                Akita: ecb291db1d3380708ba11320c46f92fa7bd6e646309d0fd97603773328396025<br><br>
-                Komodo: 5199e296d2046f36a9864490f543b34d703ef70fbad4f1a9079fa984dcb280a1<br><br>
-                Barbet: 7c65ba922c45d9914c1e75205b1672cb8d794c98cdb4d10a3787593b3b162038 (<strong>NO LONGER SUPPORTED</strong>)<br><br>
-                Bluejay: 44a914a72da983c1463f3e36f853b8ee595b5338ff122ec6fd58f6b66538d94b<br><br>
-                Caiman: 5199e296d2046f36a9864490f543b34d703ef70fbad4f1a9079fa984dcb280a1<br><br>
-                Lynx: 76fd9c95faa38ec6fe77570e0713e69583bf364b770e9aeaa2ce6d185661df3a<br><br>
-                </div>
-
-            </section>
-
-            <section id="post-installation">
-                <h2><a href="#post-installation">Post-installation</a></h2>
-
-                <section id="booting">
-                    <h3><a href="#booting">Booting</a></h3>
-
-                    <p>You've now successfully installed StellarOS and can boot it. Pressing the
-                    power button with the default Start option selected in the bootloader
-                    interface will boot the OS.</p>
-
-                </section>
-
-                <section id="help">
-                    <h2><a href="#booting">Help</a></h2>
-
-                    <p>If you need any help, please contact us at info@stellarsecurity.com.</p>
-
-                </section>
-            </section>
-
-
-        </main>
-
-    </body>
-</html>
 <script type="module" src="js/fastboot/ffe7e270/fastboot.min.mjs"></script>
-
 <script src="js/web-install.js" type="module"></script>
+</body>
+</html>
