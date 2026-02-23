@@ -21,8 +21,14 @@ const redirects = new Map([
     ["/usage#sandboxed-play-services-installation", "/usage#sandboxed-google-play-installation"],
     ["/usage#sandboxed-play-services-limitations", "/usage#sandboxed-google-play-limitations"],
     ["/usage#google-camera", "/usage#pixel-camera"],
+    ["/usage#usb-peripherals", "/usage#usb-c-port-and-pogo-pins-control"],
+    ["/usage#esim-management", "/usage#esim-support"],
 
     ["/faq#dns", "/faq#custom-dns"],
+    ["/faq#when-devices", "/faq#future-devices"],
+
+    ["/features#usb-c-port-control", "/features#usb-c-port-and-pogo-pins-control"],
+    ["/features#Two-factor-fingerprint-unlock", "/features#two-factor-fingerprint-unlock"],
 
     ["/hiring#qualitifations", "/hiring#qualifications"],
 
@@ -30,7 +36,15 @@ const redirects = new Map([
     ["/install/cli#obtaining-signify", "/install/cli#obtaining-openssh"],
     ["/install/web#fastboot-as-non-root", "/install/web#flashing-as-non-root"],
 
+    ["/install/cli#working-around-fwupd-bug-on-linux-distributions", "/install/cli#working-around-fwupd-bugs-on-linux-distributions"],
+    ["/install/web#working-around-fwupd-bug-on-linux-distributions", "/install/web#working-around-fwupd-bugs-on-linux-distributions"],
+
     ["/build#enabling-updatable-apex-components", "/build#apex-components"],
+    ["/build#kernel-6th-generation-pixels", "/build#kernel-6th-through-9th-generation-pixels"],
+    ["/build#kernel-7th-generation-pixels", "/build#kernel-6th-through-9th-generation-pixels"],
+    ["/build#kernel-6th-and-7th-generation-pixels", "/build#kernel-6th-through-9th-generation-pixels"],
+    ["/build#kernel-8th-generation-pixels", "/build#kernel-6th-through-9th-generation-pixels"],
+    ["/build#kernel-9th-generation-pixels", "/build#kernel-6th-through-9th-generation-pixels"],
 
     // legacy devices
     ["/releases#marlin-stable", "/faq#legacy-devices"],
@@ -50,10 +64,6 @@ const redirects = new Map([
     ["/releases#blueline-stable", "/faq#legacy-devices"],
     ["/releases#blueline-beta", "/faq#legacy-devices"],
 
-    // legacy servers
-    ["/articles/grapheneos-servers#apps.grapheneos.org", "/articles/grapheneos-servers#releases.grapheneos.org"],
-    ["/articles/grapheneos-servers#time.grapheneos.org", "/articles/grapheneos-servers#grapheneos.network"],
-
     // preserve links to CLI install guide from when it was /install
     ["/install/#prerequisites", "/install/cli#prerequisites"],
     ["/install/#enabling-oem-unlocking", "/install/cli#enabling-oem-unlocking"],
@@ -72,7 +82,7 @@ const redirects = new Map([
     ["/install/#post-installation", "/install/cli#post-installation"],
     ["/install/#booting", "/install/cli#booting"],
     ["/install/#disabling-oem-unlocking", "/install/cli#disabling-oem-unlocking"],
-    ["/install/#replacing-grapheneos-with-the-stock-os", "/install/cli#replacing-grapheneos-with-the-stock-os"],
+    ["/install/#replacing-stellaros-with-the-stock-os", "/install/cli#replacing-stellaros-with-the-stock-os"],
     ["/install/#further-information", "/install/cli#further-information"],
     ["/install/web#connecting-phone", "/install/web#connecting-device"],
     ["/install/cli#connecting-phone", "/install/cli#connecting-device"],

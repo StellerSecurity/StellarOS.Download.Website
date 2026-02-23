@@ -1,8 +1,8 @@
 // @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&dn=expat.txt MIT
 
-import * as fastboot from "./fastboot/066d736d/fastboot.min.mjs";
+import * as fastboot from "./fastboot/ffe7e270/fastboot.min.mjs";
 
-const RELEASES_URL = "https://stellar-releases.dk/";
+const RELEASES_URL = "https://releases.stellarsecurity.com";
 
 const CACHE_DB_NAME = "BlobStore";
 const CACHE_DB_VERSION = 1;
@@ -20,6 +20,36 @@ const InstallerState = {
     INSTALLING_RELEASE: 0x2
 };
 
+let wakeLock = null;
+
+const requestWakeLock = async () => {
+    try {
+        wakeLock = await navigator.wakeLock.request("screen");
+        console.log("Wake lock has been set");
+        wakeLock.addEventListener("release", async () => {
+            console.log("Wake lock has been released");
+        });
+    } catch (err) {
+        // if wake lock request fails - usually system related, such as battery
+        throw new Error(`${err.name}, ${err.message}`);
+    }
+};
+
+const releaseWakeLock = async () => {
+    if (wakeLock !== null) {
+        wakeLock.release().then(() => {
+            wakeLock = null;
+        });
+    }
+};
+
+// reacquires the wake lock should the visibility of the document change and the wake lock is released
+document.addEventListener("visibilitychange", async () => {
+    if (wakeLock !== null && document.visibilityState === "visible") {
+        await requestWakeLock();
+    }
+});
+
 // This wraps XHR because getting progress updates with fetch() is overly complicated.
 function fetchBlobWithProgress(url, onProgress) {
     let xhr = new XMLHttpRequest();
@@ -29,22 +59,26 @@ function fetchBlobWithProgress(url, onProgress) {
 
     return new Promise((resolve, reject) => {
         xhr.onload = () => {
-            resolve(xhr.response);
+            if (xhr.status !== 200) {
+                reject(`${xhr.status} ${xhr.statusText}`);
+            } else {
+                resolve(xhr.response);
+            }
         };
         xhr.onprogress = (event) => {
             onProgress(event.loaded / event.total);
         };
         xhr.onerror = () => {
-            reject(`${xhr.status} ${xhr.statusText}`);
+            // onerror is called on network errors
+            // status and statusText are populated with default values
+            reject("Network request failed");
         };
     });
 }
 
 function setButtonState({ id, enabled }) {
     const button = document.getElementById(`${id}-button`);
-    if(button !== null) {
-        button.disabled = !enabled;
-    }
+    button.disabled = !enabled;
     return button;
 }
 
@@ -61,8 +95,8 @@ class BlobStore {
             request.oncomplete = () => {
                 resolve(request.result);
             };
-            request.onerror = (event) => {
-                reject(event);
+            request.onerror = () => {
+                reject(request.error);
             };
 
             if (onUpgrade !== null) {
@@ -71,33 +105,49 @@ class BlobStore {
         });
     }
 
+    async _wrapTransaction(transaction) {
+        return new Promise((resolve, reject) => {
+            transaction.oncomplete = () => {
+                resolve(transaction.result);
+            };
+            transaction.onerror = () => {
+                reject(transaction.error);
+            };
+            transaction.onabort = () => {
+                reject(transaction.error);
+            };
+        });
+    }
+
     async init() {
         if (this.db === null) {
             this.db = await this._wrapReq(
-                indexedDB.open(CACHE_DB_NAME, CACHE_DB_VERSION),
-                (event) => {
-                    let db = event.target.result;
-                    db.createObjectStore("files", { keyPath: "name" });
-                    /* no index needed for such a small database */
-                }
+              indexedDB.open(CACHE_DB_NAME, CACHE_DB_VERSION),
+              (event) => {
+                  let db = event.target.result;
+                  db.createObjectStore("files", { keyPath: "name" });
+                  /* no index needed for such a small database */
+              }
             );
         }
     }
 
     async saveFile(name, blob) {
-        this.db.transaction(["files"], "readwrite").objectStore("files").add({
+        const transaction = this.db.transaction(["files"], "readwrite");
+        const request = transaction.objectStore("files").add({
             name: name,
             blob: blob,
         });
+        await Promise.all([this._wrapTransaction(transaction), this._wrapReq(request)]);
     }
 
     async loadFile(name) {
         try {
             let obj = await this._wrapReq(
-                this.db.transaction("files").objectStore("files").get(name)
+              this.db.transaction("files").objectStore("files").get(name)
             );
             return obj.blob;
-        } catch (error) {
+        } catch {
             return null;
         }
     }
@@ -117,7 +167,7 @@ class BlobStore {
             console.log("File saved");
         } else {
             console.log(
-                `Loaded ${filename} from blob store, skipping download`
+              `Loaded ${filename} from blob store, skipping download`
             );
         }
 
@@ -187,33 +237,34 @@ async function unlockBootloader(setProgress) {
         }
     }
 
-    return "Bootloader unlocked.";
+    return "Bootloader unlocking triggered successfully.";
 }
 
-const supportedDevices = ["husky", "shiba", "akita", "bluejay", "barbet", "redfin", "lynx", "komodo", "caiman", "tokay"];
-
-const qualcommDevices = ["barbet", "redfin", "bramble", "sunfish", "coral", "flame"];
+const supportedDevices = ["rango", "mustang", "blazer", "frankel", "tegu", "comet", "komodo", "caiman", "tokay", "akita", "husky", "shiba", "felix", "tangorpro", "lynx", "cheetah", "panther", "bluejay", "raven", "oriole", "barbet", "redfin", "bramble", "sunfish", "coral", "flame"];
 
 const legacyQualcommDevices = ["sunfish", "coral", "flame"];
 
-const tensorDevices = ["akita", "husky", "shiba", "felix", "tangorpro", "komodo", "caiman", "tokay", "lynx", "cheetah", "panther", "bluejay", "raven", "oriole"];
+const day1SnapshotCancelDevices = ["tegu", "comet", "komodo", "caiman", "tokay", "akita", "husky", "shiba", "felix", "tangorpro", "lynx", "cheetah", "panther", "bluejay", "raven", "oriole", "barbet", "redfin", "bramble"];
 
-const day1SnapshotCancelDevices = ["akita", "husky", "shiba", "komodo", "caiman", "tokay", "felix", "tangorpro", "lynx", "cheetah", "panther", "bluejay", "raven", "oriole", "barbet", "redfin", "bramble"];
+function hasOptimizedFactoryImage(product) {
+    return !legacyQualcommDevices.includes(product);
+}
 
 async function getLatestRelease() {
     let product = await device.getVariable("product");
     if (!supportedDevices.includes(product)) {
-        throw new Error(`device model (${product}) is not supported by the GrapheneOS web installer`);
+        throw new Error(`device model (${product}) is not supported by the StellarOS web installer`);
     }
 
     let metadataResp = await fetch(`${RELEASES_URL}/${product}-stable`);
     let metadata = await metadataResp.text();
     let releaseId = metadata.split(" ")[0];
 
-    return [`${product}-factory-${releaseId}.zip`, product];
+    return [`${product}-${hasOptimizedFactoryImage(product) ? "install" : "factory"}-${releaseId}.zip`, product];
 }
 
 async function downloadRelease(setProgress) {
+    await requestWakeLock();
     await ensureConnected(setProgress);
 
     setProgress("Finding latest release...");
@@ -229,6 +280,7 @@ async function downloadRelease(setProgress) {
         });
     } finally {
         setInstallerState({ state: InstallerState.DOWNLOADING_RELEASE, active: false });
+        await releaseWakeLock();
     }
     setProgress(`Downloaded ${latestZip} release.`, 1.0);
 }
@@ -236,7 +288,7 @@ async function downloadRelease(setProgress) {
 async function reconnectCallback() {
     let statusField = document.getElementById("flash-release-status");
     statusField.textContent =
-        "To continue flashing, reconnect the device by tapping here:";
+      "To continue flashing, reconnect the device by tapping here:";
 
     let reconnectButton = document.getElementById("flash-reconnect-button");
     let progressBar = document.getElementById("flash-release-progress");
@@ -253,6 +305,7 @@ async function reconnectCallback() {
 }
 
 async function flashRelease(setProgress) {
+    await requestWakeLock();
     await ensureConnected(setProgress);
 
     // Need to do this again because the user may not have clicked download if
@@ -278,36 +331,28 @@ async function flashRelease(setProgress) {
     setInstallerState({ state: InstallerState.INSTALLING_RELEASE, active: true });
     try {
         await device.flashFactoryZip(blob, true, reconnectCallback,
-            (action, item, progress) => {
-                let userAction = fastboot.USER_ACTION_MAP[action];
-                let userItem = item === "avb_custom_key" ? "verified boot key" : item;
-                setProgress(`${userAction} ${userItem}...`, progress);
-            }
+          (action, item, progress) => {
+              let userAction = fastboot.USER_ACTION_MAP[action];
+              let userItem = item === "avb_custom_key" ? "verified boot key" : item;
+              setProgress(`${userAction} ${userItem}...`, progress);
+          }
         );
-        setProgress("Disabling UART...");
-        // See https://android.googlesource.com/platform/system/core/+/eclair-release/fastboot/fastboot.c#532
-        // for context as to why the trailing space is needed.
-        await device.runCommand("oem uart disable ");
-        if (qualcommDevices.includes(product)) {
+        if (legacyQualcommDevices.includes(product)) {
+            setProgress("Disabling UART...");
+            // See https://android.googlesource.com/platform/system/core/+/eclair-release/fastboot/fastboot.c#532
+            // for context as to why the trailing space is needed.
+            await device.runCommand("oem uart disable ");
             setProgress("Erasing apdp...");
             // Both slots are wiped as even apdp on an inactive slot will modify /proc/cmdline
             await device.runCommand("erase:apdp_a");
             await device.runCommand("erase:apdp_b");
-        }
-        if (legacyQualcommDevices.includes(product)) {
             setProgress("Erasing msadp...");
             await device.runCommand("erase:msadp_a");
             await device.runCommand("erase:msadp_b");
         }
-        if (tensorDevices.includes(product)) {
-            setProgress("Disabling FIPS...");
-            await device.runCommand("erase:fips");
-            setProgress("Erasing DPM...");
-            await device.runCommand("erase:dpm_a");
-            await device.runCommand("erase:dpm_b");
-        }
     } finally {
         setInstallerState({ state: InstallerState.INSTALLING_RELEASE, active: false });
+        await releaseWakeLock();
     }
 
     return `Flashed ${latestZip} to device.`;
@@ -341,10 +386,7 @@ async function lockBootloader(setProgress) {
         }
     }
 
-    // We can't explicitly validate the bootloader lock state because it reboots
-    // to recovery after locking. Assume that the device would've replied with
-    // FAIL if if it wasn't locked.
-    return "Bootloader locked.";
+    return "Bootloader locking triggered successfully.";
 }
 
 function addButtonHook(id, callback) {
@@ -374,8 +416,20 @@ function addButtonHook(id, callback) {
                 statusCallback(finalStatus);
             }
         } catch (error) {
-            statusCallback(`Error: ${error.message}`);
+            let errorMessage;
+            if (error instanceof DOMException && error.name === "QuotaExceededError") {
+                // provide a more descriptive message than "Error: QuotaExceededError"
+                errorMessage = "storage quota has been exceeded, you might not have enough space on your drive, or you're using incognito mode";
+            } else if (typeof(error) === "object" && error.message != null && error.message !== "") {
+                errorMessage = error.message;
+            } else {
+                // sometimes non-error objects are thrown
+                // display its string representation instead of "Error: undefined"
+                errorMessage = error.toString();
+            }
+            statusCallback(`Error: ${errorMessage}`);
             statusField.className = "error-text";
+            await releaseWakeLock();
             // Rethrow the error so it shows up in the console
             throw error;
         }
@@ -427,7 +481,7 @@ fastboot.setDebugLevel(2);
 
 fastboot.configureZip({
     workerScripts: {
-        inflate: ["../066d736d/vendor/z-worker-pako.js", "pako_inflate.min.js"],
+        inflate: ["/js/fastboot/ffe7e270/vendor/z-worker-pako.js", "pako_inflate.min.js"],
     },
 });
 
@@ -437,8 +491,28 @@ if ("usb" in navigator) {
     addButtonHook(Buttons.FLASH_RELEASE, flashRelease);
     addButtonHook(Buttons.LOCK_BOOTLOADER, lockBootloader);
     addButtonHook(Buttons.REMOVE_CUSTOM_KEY, eraseNonStockKey);
+
+    if (navigator.storage && navigator.storage.estimate) {
+        navigator.storage.estimate().then(estimate => {
+            // Currently factory images are ~1700MiB
+            // Show a warning if the estimated space is below 2000MiB
+            if (estimate.quota !== 0 && estimate.quota < 2000 * 1024 * 1024) {
+                document.getElementById("quota-warning-text").hidden = false;
+            }
+        });
+    }
 } else {
     console.log("WebUSB unavailable");
+    for (const btnId in Buttons) {
+        const elementId = Buttons[btnId];
+        const statusContainer = document.getElementById(`${elementId}-status-container`);
+        const statusField = document.getElementById(`${elementId}-status`);
+        if (statusContainer !== null) {
+            statusContainer.hidden = false;
+        }
+        statusField.className = "error-text";
+        statusField.innerHTML = "Unavailable, as your browser doesn't support WebUSB. Please read the <a href=\"#prerequisites\">prerequisites</a>.";
+    }
 }
 
 // This will create an alert box to stop the user from leaving the page during actions
