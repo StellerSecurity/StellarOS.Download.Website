@@ -2,10 +2,8 @@
 
 import * as fastboot from "./fastboot/ffe7e270/fastboot.min.mjs";
 
-const RELEASES_URL = "https://stellar-releases.dk/";
+const RELEASES_URL = "https://stellar-releases.dk";
 
-const CACHE_DB_NAME = "BlobStore";
-const CACHE_DB_VERSION = 1;
 
 const Buttons = {
     UNLOCK_BOOTLOADER: "unlock-bootloader",
@@ -78,6 +76,72 @@ function fetchBlobWithProgress(url, onProgress) {
     });
 }
 
+async function getContentLength(url) {
+    try {
+        const resp = await fetch(url, { method: "HEAD", cache: "no-store" });
+        if (!resp.ok) return null;
+        const len = resp.headers.get("content-length");
+        if (!len) return null;
+        const n = Number(len);
+        return Number.isFinite(n) ? n : null;
+    } catch {
+        return null;
+    }
+}
+
+// Minimal ZIP integrity check to catch truncated/corrupt downloads before unzip/flash.
+async function validateZipBlob(blob) {
+    const size = blob.size;
+    if (!Number.isFinite(size) || size < 1024) {
+        throw new Error("downloaded ZIP is unexpectedly small; please retry the download");
+    }
+
+    // EOCD is within the last 65,557 bytes (64k + comment + header).
+    const tailLen = Math.min(size, 65557);
+    const tail = new Uint8Array(await blob.slice(size - tailLen, size).arrayBuffer());
+
+    // EOCD signature: 0x06054b50 (little-endian: 50 4b 05 06)
+    let eocdOffset = -1;
+    for (let i = tail.length - 22; i >= 0; i--) {
+        if (tail[i] === 0x50 && tail[i + 1] === 0x4b && tail[i + 2] === 0x05 && tail[i + 3] === 0x06) {
+            eocdOffset = i;
+            break;
+        }
+    }
+    if (eocdOffset === -1) {
+        throw new Error("ZIP appears to be corrupt/truncated (EOCD not found). Re-download and try again.");
+    }
+
+    const dv = new DataView(tail.buffer, tail.byteOffset + eocdOffset, tail.length - eocdOffset);
+    const cdSize = dv.getUint32(12, true);
+    const cdOffset = dv.getUint32(16, true);
+
+    // Zip64 uses sentinel values; we don't fully parse Zip64 here, but at least avoid false negatives.
+    const isZip64 = (cdSize === 0xffffffff || cdOffset === 0xffffffff);
+    if (!isZip64) {
+        const cdEnd = cdOffset + cdSize;
+        if (cdEnd > size) {
+            throw new Error("ZIP appears truncated (central directory beyond file end). Re-download and try again.");
+        }
+    }
+}
+
+async function downloadFreshBlob(url, onProgress) {
+    // Cache-buster to avoid intermediaries reusing partial downloads.
+    const cacheBuster = url.includes("?") ? "&" : "?";
+    const freshUrl = `${url}${cacheBuster}ts=${Date.now()}`;
+
+    const expected = await getContentLength(url);
+    const blob = await fetchBlobWithProgress(freshUrl, onProgress);
+
+    if (expected !== null && blob.size !== expected) {
+        throw new Error(`download size mismatch (expected ${expected} bytes, got ${blob.size} bytes). Please retry.`);
+    }
+
+    await validateZipBlob(blob);
+    return blob;
+}
+
 function setButtonState({ id, enabled }) {
     const button = document.getElementById(`${id}-button`);
     if (!button) {
@@ -88,97 +152,6 @@ function setButtonState({ id, enabled }) {
     return button;
 }
 
-class BlobStore {
-    constructor() {
-        this.db = null;
-    }
-
-    async _wrapReq(request, onUpgrade = null) {
-        return new Promise((resolve, reject) => {
-            request.onsuccess = () => {
-                resolve(request.result);
-            };
-            request.oncomplete = () => {
-                resolve(request.result);
-            };
-            request.onerror = () => {
-                reject(request.error);
-            };
-
-            if (onUpgrade !== null) {
-                request.onupgradeneeded = onUpgrade;
-            }
-        });
-    }
-
-    async _wrapTransaction(transaction) {
-        return new Promise((resolve, reject) => {
-            transaction.oncomplete = () => {
-                resolve(transaction.result);
-            };
-            transaction.onerror = () => {
-                reject(transaction.error);
-            };
-            transaction.onabort = () => {
-                reject(transaction.error);
-            };
-        });
-    }
-
-    async init() {
-        if (this.db === null) {
-            this.db = await this._wrapReq(
-              indexedDB.open(CACHE_DB_NAME, CACHE_DB_VERSION),
-              (event) => {
-                  let db = event.target.result;
-                  db.createObjectStore("files", { keyPath: "name" });
-                  /* no index needed for such a small database */
-              }
-            );
-        }
-    }
-
-    async saveFile(name, blob) {
-        const transaction = this.db.transaction(["files"], "readwrite");
-        const request = transaction.objectStore("files").add({
-            name: name,
-            blob: blob,
-        });
-        await Promise.all([this._wrapTransaction(transaction), this._wrapReq(request)]);
-    }
-
-    async loadFile(name) {
-        try {
-            let obj = await this._wrapReq(
-              this.db.transaction("files").objectStore("files").get(name)
-            );
-            return obj ? obj.blob : null;
-        } catch {
-            return null;
-        }
-    }
-
-    async close() {
-        this.db.close();
-    }
-
-    async download(url, onProgress = () => {}) {
-        let filename = url.split("/").pop();
-        let blob = await this.loadFile(filename);
-
-        if (blob === null) {
-            console.log(`Downloading ${url}`);
-            blob = await fetchBlobWithProgress(url, onProgress);
-            console.log("File downloaded, saving...");
-            await this.saveFile(filename, blob);
-            console.log("File saved");
-        } else {
-            console.log(`Loaded ${filename} from blob store, skipping download`);
-        }
-
-        return blob;
-    }
-}
 
 class ButtonController {
     #map;
@@ -211,7 +184,7 @@ class ButtonController {
 let installerState = 0;
 
 let device = new fastboot.FastbootDevice();
-let blobStore = new BlobStore();
+let downloadedRelease = null; // { name: string, blob: Blob, product: string, releaseId: string, downloadedAt: number }
 let buttonController = new ButtonController();
 
 async function ensureConnected(setProgress) {
@@ -264,23 +237,22 @@ function hasOptimizedFactoryImage(product) {
 }
 
 async function getLatestRelease() {
-    const product = await device.getVariable("product");
+    let product = await device.getVariable("product");
     if (!supportedDevices.includes(product)) {
         throw new Error(`device model (${product}) is not supported by the StellarOS web installer`);
     }
 
-    // Avoid // if RELEASES_URL already ends with /
     const base = RELEASES_URL.replace(/\/+$/, "");
-
-    const metadataResp = await fetch(`${base}/${product}-stable`, { cache: "no-store" });
+    let metadataResp = await fetch(`${base}/${product}-stable`, { cache: "no-store" });
     if (!metadataResp.ok) {
         throw new Error(`failed to fetch release metadata for ${product} (HTTP ${metadataResp.status})`);
     }
 
-    const metadata = await metadataResp.text();
-    const releaseId = metadata.trim().split(/\s+/)[0];
+    let metadata = await metadataResp.text();
+    let releaseId = metadata.trim().split(/\s+/)[0];
 
-    return [`${product}-factory-${releaseId}.zip`, product];
+    // Older Stellar releases publish factory images only.
+    return [`${product}-factory-${releaseId}.zip`, product, releaseId];
 }
 
 async function downloadRelease(setProgress) {
@@ -288,21 +260,23 @@ async function downloadRelease(setProgress) {
     await ensureConnected(setProgress);
 
     setProgress("Finding latest release...");
-    let [latestZip,] = await getLatestRelease();
+    let [latestZip, product, releaseId] = await getLatestRelease();
 
-    // Download and cache the zip as a blob
     setInstallerState({ state: InstallerState.DOWNLOADING_RELEASE, active: true });
-    setProgress(`Downloading ${latestZip}...`);
-    await blobStore.init();
     try {
-        await blobStore.download(`${RELEASES_URL}/${latestZip}`, (progress) => {
+        const base = RELEASES_URL.replace(/\/+$/, "");
+        const url = `${base}/${latestZip}`;
+        setProgress(`Downloading ${latestZip}...`, 0);
+        const blob = await downloadFreshBlob(url, (progress) => {
             setProgress(`Downloading ${latestZip}...`, progress);
         });
+
+        downloadedRelease = { name: latestZip, blob, product, releaseId, downloadedAt: Date.now() };
+        setProgress(`Downloaded ${latestZip} release.`, 1.0);
     } finally {
         setInstallerState({ state: InstallerState.DOWNLOADING_RELEASE, active: false });
         await releaseWakeLock();
     }
-    setProgress(`Downloaded ${latestZip} release.`, 1.0);
 }
 
 async function reconnectCallback() {
@@ -331,13 +305,30 @@ async function flashRelease(setProgress) {
     await requestWakeLock();
     await ensureConnected(setProgress);
 
-    // Need to do this again because the user may not have clicked download if it was cached
     setProgress("Finding latest release...");
-    let [latestZip, product] = await getLatestRelease();
-    await blobStore.init();
-    let blob = await blobStore.loadFile(latestZip);
-    if (blob === null) {
-        throw new Error("You need to download a release first!");
+    let [latestZip, product, releaseId] = await getLatestRelease();
+
+    let blob;
+    if (downloadedRelease !== null && downloadedRelease.name === latestZip) {
+        blob = downloadedRelease.blob;
+    } else {
+        // Download the exact ZIP we are about to flash (fresh download, no persistent caching).
+        setInstallerState({ state: InstallerState.DOWNLOADING_RELEASE, active: true });
+        try {
+            const base = RELEASES_URL.replace(/\/+$/, "");
+            const url = `${base}/${latestZip}`;
+            setProgress(`Downloading ${latestZip}...`, 0);
+            blob = await downloadFreshBlob(url, (progress) => {
+                setProgress(`Downloading ${latestZip}...`, progress);
+            });
+
+            downloadedRelease = { name: latestZip, blob, product, releaseId, downloadedAt: Date.now() };
+        } finally {
+            setInstallerState({ state: InstallerState.DOWNLOADING_RELEASE, active: false });
+        }
+    }
+    if (!blob) {
+        throw new Error("failed to obtain release ZIP; please retry");
     }
 
     setProgress("Cancelling any pending OTAs...");
@@ -351,12 +342,31 @@ async function flashRelease(setProgress) {
 
     setProgress("Flashing release...");
     setInstallerState({ state: InstallerState.INSTALLING_RELEASE, active: true });
+
+    // Watchdog: if unzip/flash stalls, surface a clear error instead of hanging forever.
+    let stallTimer = null;
+    let stallReject = null;
+    const stallPromise = new Promise((_, reject) => { stallReject = reject; });
+
+    const resetStall = (label) => {
+        if (stallTimer) clearTimeout(stallTimer);
+        stallTimer = setTimeout(() => {
+            stallReject(new Error(`stalled while ${label}. This usually means a corrupt/truncated ZIP. Please re-download and try again.`));
+        }, 180000); // 3 minutes
+    };
+
     try {
-        await device.flashFactoryZip(blob, true, reconnectCallback, (action, item, progress) => {
+        resetStall("preparing the flash");
+        const flashPromise = device.flashFactoryZip(blob, true, reconnectCallback, (action, item, progress) => {
             let userAction = fastboot.USER_ACTION_MAP[action];
             let userItem = item === "avb_custom_key" ? "verified boot key" : item;
             setProgress(`${userAction} ${userItem}...`, progress);
+
+            if (action === "unpack") resetStall(`unpacking ${userItem}`);
+            if (action === "flash") resetStall(`writing ${userItem}`);
         });
+
+        await Promise.race([flashPromise, stallPromise]);
 
         if (legacyQualcommDevices.includes(product)) {
             setProgress("Disabling UART...");
@@ -372,6 +382,7 @@ async function flashRelease(setProgress) {
             await device.runCommand("erase:msadp_b");
         }
     } finally {
+        if (stallTimer) clearTimeout(stallTimer);
         setInstallerState({ state: InstallerState.INSTALLING_RELEASE, active: false });
         await releaseWakeLock();
     }
@@ -514,6 +525,8 @@ function safeToLeave() {
 fastboot.setDebugLevel(2);
 
 fastboot.configureZip({
+    // Prefer stability over speed. This avoids "Unpacking ... stuck forever" issues in some environments.
+    useWebWorkers: false,
     workerScripts: {
         inflate: ["/js/fastboot/ffe7e270/vendor/z-worker-pako.js", "pako_inflate.min.js"],
     },
