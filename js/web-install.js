@@ -264,14 +264,21 @@ function hasOptimizedFactoryImage(product) {
 }
 
 async function getLatestRelease() {
-    let product = await device.getVariable("product");
+    const product = await device.getVariable("product");
     if (!supportedDevices.includes(product)) {
         throw new Error(`device model (${product}) is not supported by the StellarOS web installer`);
     }
 
-    let metadataResp = await fetch(`${RELEASES_URL}/${product}-stable`);
-    let metadata = await metadataResp.text();
-    let releaseId = metadata.split(" ")[0];
+    // Avoid // if RELEASES_URL already ends with /
+    const base = RELEASES_URL.replace(/\/+$/, "");
+
+    const metadataResp = await fetch(`${base}/${product}-stable`, { cache: "no-store" });
+    if (!metadataResp.ok) {
+        throw new Error(`failed to fetch release metadata for ${product} (HTTP ${metadataResp.status})`);
+    }
+
+    const metadata = await metadataResp.text();
+    const releaseId = metadata.trim().split(/\s+/)[0];
 
     return [`${product}-factory-${releaseId}.zip`, product];
 }
